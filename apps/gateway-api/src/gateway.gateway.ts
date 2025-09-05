@@ -8,6 +8,8 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
 
 @WebSocketGateway({
   cors: {
@@ -17,6 +19,8 @@ import { Server, Socket } from 'socket.io';
 export class GatewayGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
+
+  constructor(private readonly httpService: HttpService) {}
 
   handleConnection(client: Socket) {
     console.log(`Client connected to gateway: ${client.id}`);
@@ -67,11 +71,29 @@ export class GatewayGateway implements OnGatewayConnection, OnGatewayDisconnect 
   }
 
   @SubscribeMessage('draw')
-  handleDraw(
+  async handleDraw(
     @MessageBody() data: { roomId: string; drawData: any; userId: string },
     @ConnectedSocket() client: Socket,
   ) {
     console.log(`Draw event from ${data.userId} in room ${data.roomId}`);
+
+    // Validate and update canvas state via canvas service HTTP API
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(
+          'http://localhost:3000/canvas/' + data.roomId + '/draw',
+          data.drawData,
+        ),
+      );
+      if (response.data.error) {
+        client.emit('error', { message: response.data.error });
+        return;
+      }
+    } catch (error) {
+      client.emit('error', { message: 'Canvas service unavailable' });
+      return;
+    }
+
     // Broadcast draw data to all clients in the room except the sender
     client.to(data.roomId).emit('draw', {
       drawData: data.drawData,
