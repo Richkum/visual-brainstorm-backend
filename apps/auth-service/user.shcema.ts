@@ -1,4 +1,3 @@
-// user.schema.ts
 import { HydratedDocument, Schema, Types } from 'mongoose';
 
 const SessionSchema = new Schema(
@@ -17,7 +16,7 @@ export const UserSchema = new Schema(
     username: {
       type: String,
       required: true,
-      trim: true,
+      trim: false,
       match: [/^[a-zA-Z0-9 ]{3,30}$/, 'Username must be 3-30 characters.'],
     },
     email: {
