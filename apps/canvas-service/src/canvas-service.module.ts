@@ -5,6 +5,6 @@ import { CanvasServiceService } from './canvas-service.service';
 @Module({
   imports: [],
   controllers: [CanvasServiceController],
-  providers: [CanvasServiceService],
+  providers: [CanvasServiceService, ],
 })
 export class CanvasServiceModule {}
