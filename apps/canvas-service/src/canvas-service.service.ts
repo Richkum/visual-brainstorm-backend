@@ -1,44 +1,74 @@
 import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Canvas, DrawData, CanvasDocument } from './canvas.schema';
 
 export interface CanvasData {
   roomId: string;
-  strokes: any[];
+  strokes: DrawData[];
   lastUpdated: Date;
 }
 
 @Injectable()
 export class CanvasServiceService {
-  private canvases: Map<string, CanvasData> = new Map();
+  constructor(
+    @InjectModel('Canvas') private canvasModel: Model<CanvasDocument>,
+  ) {}
 
   getHello(): string {
     return 'Hello World!';
   }
 
-  getCanvas(roomId: string): CanvasData | null {
-    return this.canvases.get(roomId) || null;
+  async getCanvas(roomId: string): Promise<Canvas | null> {
+    return this.canvasModel.findOne({ roomId }).exec();
   }
 
-  updateCanvas(roomId: string, drawData: any): CanvasData {
-    let canvas = this.canvases.get(roomId);
+
+  async updateCanvas(roomId: string, drawData: DrawData): Promise<Canvas> {
+    let canvas = await this.canvasModel.findOne({ roomId }).exec();
     if (!canvas) {
-      canvas = {
+      canvas = new this.canvasModel({
         roomId,
+        name: 'Untitled Board',
+        creator: 'unknown',
         strokes: [],
         lastUpdated: new Date(),
-      };
+      });
     }
     canvas.strokes.push(drawData);
     canvas.lastUpdated = new Date();
-    this.canvases.set(roomId, canvas);
-    return canvas;
+    return canvas.save();
   }
 
-  clearCanvas(roomId: string): void {
-    this.canvases.delete(roomId);
+  async createBoard(roomId: string, name: string, creator: string): Promise<Canvas> {
+    const existing = await this.canvasModel.findOne({ roomId }).exec();
+    if (existing) {
+      throw new Error('Board with this roomId already exists');
+    }
+    const newBoard = new this.canvasModel({
+      roomId,
+      name,
+      creator,
+      strokes: [],
+      lastUpdated: new Date(),
+    });
+    return newBoard.save();
   }
 
-  validateDrawData(drawData: any): boolean {
+  async listBoards(): Promise<Canvas[]> {
+    return this.canvasModel.find().exec();
+  }
+
+  async deleteBoard(roomId: string): Promise<void> {
+    await this.canvasModel.deleteOne({ roomId }).exec();
+  }
+
+  async clearCanvas(roomId: string): Promise<void> {
+    await this.canvasModel.deleteOne({ roomId }).exec();
+  }
+
+  validateDrawData(drawData: DrawData): boolean {
     // Basic validation: check if drawData has required fields
-    return drawData && typeof drawData === 'object' && drawData.type;
+    return !!(drawData && typeof drawData === 'object' && drawData.type && drawData.id);
   }
 }
