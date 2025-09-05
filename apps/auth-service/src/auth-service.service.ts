@@ -3,10 +3,9 @@ import {
   BadRequestException,
   UnauthorizedException,
   ConflictException,
-  InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Request, Response } from 'express';
@@ -16,7 +15,6 @@ import { UserDocument } from '../user.shcema';
 @Injectable()
 export class AuthServiceService {
   private ACCESS_TOKEN_EXPIRES = '30d';
-  private REFRESH_TOKEN_EXPIRES_MS = 30 * 24 * 60 * 60 * 1000;
 
   constructor(
     @InjectModel('User') private userModel: Model<UserDocument>,
@@ -36,50 +34,8 @@ export class AuthServiceService {
     });
   }
 
-  private generateRefreshToken(user: UserDocument) {
-    const payload = {
-      sub: user._id.toString(),
-      t: 'refresh',
-    };
-    return this.jwtService.sign(payload, {
-      expiresIn: this.ACCESS_TOKEN_EXPIRES,
-    });
-  }
-
-  private async hashToken(token: string) {
-    return bcrypt.hash(token, 10);
-  }
-
-  public setRefreshCookie(res: Response, token: string) {
-    const cookieOptions = {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax' as const,
-      maxAge: this.REFRESH_TOKEN_EXPIRES_MS,
-      path: '/',
-    };
-    res.cookie('refreshToken', token, cookieOptions);
-  }
-
-  public clearRefreshCookie(res: Response) {
-    res.clearCookie('refreshToken', { path: '/' });
-  }
-
-  // find session index by comparing refresh token against hashed tokens (bcrypt.compare)
-  private async findSessionIndexByRefreshToken(
-    user: UserDocument,
-    refreshToken: string,
-  ) {
-    for (let i = 0; i < user.sessions.length; i++) {
-      const s = user.sessions[i];
-      const match = await bcrypt.compare(refreshToken, s.refreshTokenHash);
-      if (match) return i;
-    }
-    return -1;
-  }
-
   // --- register ---
-  async register(userData: any, req: Request) {
+  async register(userData: any) {
     const { username, email, password } = userData;
 
     const existingUser = await this.userModel.findOne({ email });
@@ -125,43 +81,45 @@ export class AuthServiceService {
   }
 
   // --- verify email (auto-login) ---
-  async verifyEmail(email: string, code: string, req: Request, res: Response) {
+  async verifyEmail(email: string, code: string) {
+    console.log(`Verifying email for: ${email} with code: ${code}`);
     const user = await this.userModel.findOne({ email });
-    if (!user) throw new BadRequestException('User not found');
+    if (!user) {
+      console.log(`Verification failed: User not found for email: ${email}`);
+      throw new BadRequestException('User not found');
+    }
 
     if (user.isVerified) {
+      console.log(
+        `Verification failed: User already verified for email: ${email}`,
+      );
       return { success: true, message: 'Already verified. Please login.' };
     }
 
+    if (user.verificationCode !== code) {
+      console.log(
+        `Verification failed: Invalid code. Provided: ${code}, Stored: ${user.verificationCode}`,
+      );
+      throw new BadRequestException('Invalid code.');
+    }
+
     if (
-      user.verificationCode !== code ||
       !user.verificationCodeExpires ||
       user.verificationCodeExpires < new Date()
     ) {
+      console.log(`Verification failed: Code expired for email: ${email}`);
       throw new BadRequestException('Invalid or expired code.');
     }
 
     user.isVerified = true;
     user.verificationCode = '';
     user.verificationCodeExpires = null;
-
-    const accessToken = this.generateAccessToken(user);
-    const refreshToken = this.generateRefreshToken(user);
-    const refreshHash = await this.hashToken(refreshToken);
-
-    const session = {
-      _id: new Types.ObjectId(),
-      refreshTokenHash: refreshHash,
-      createdAt: new Date(),
-      expiresAt: new Date(Date.now() + this.REFRESH_TOKEN_EXPIRES_MS),
-      ip: req.ip,
-      userAgent: req.headers['user-agent'] || '',
-    };
-
-    user.sessions.push(session as any);
     await user.save();
 
-    this.setRefreshCookie(res, refreshToken);
+    console.log(
+      `Email verified successfully for: ${email}. Proceeding with login.`,
+    );
+    const accessToken = this.generateAccessToken(user);
 
     return {
       success: true,
@@ -172,123 +130,32 @@ export class AuthServiceService {
   }
 
   // --- login ---
-  async login(email: string, password: string, req: Request, res: Response) {
+  async login(email: string, password: string) {
     const user = await this.userModel.findOne({ email });
     if (!user) throw new UnauthorizedException('Invalid credentials');
-    if (!user.isVerified)
+    if (!user.isVerified) {
+      console.log(`Login failed: User not verified for email: ${email}`);
       throw new UnauthorizedException(
         'Email not verified. Please verify your email first.',
       );
-
+    }
+    console.log(`Login successful for verified user: ${email}`);
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid)
       throw new UnauthorizedException('Invalid credentials');
 
     const accessToken = this.generateAccessToken(user);
-    const refreshToken = this.generateRefreshToken(user);
-    const refreshHash = await this.hashToken(refreshToken);
-    const session = {
-      _id: new Types.ObjectId(),
-      refreshTokenHash: refreshHash,
-      createdAt: new Date(),
-      expiresAt: new Date(Date.now() + this.REFRESH_TOKEN_EXPIRES_MS),
-      ip: req.ip,
-      userAgent: req.headers['user-agent'] || '',
+
+    return {
+      success: true,
+      accessToken,
+      user: { id: user._id, username: user.username, email: user.email },
     };
-    user.sessions.push(session as any);
-    await user.save();
-
-    this.setRefreshCookie(res, refreshToken);
-
-    return { success: true, accessToken };
   }
 
-  // --- refresh token endpoint ---
-  async refresh(req: Request, res: Response) {
-    const refreshToken = req.cookies?.refreshToken;
-    if (!refreshToken) {
-      throw new UnauthorizedException('No refresh token provided');
-    }
-
-    let payload: any = null;
-    try {
-      payload = this.jwtService.verify(refreshToken, {
-        ignoreExpiration: true,
-      });
-    } catch (err) {
-      // token invalid
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-
-    const userId = payload?.sub;
-    if (!userId) throw new UnauthorizedException('Invalid refresh token');
-
-    const user = await this.userModel.findById(userId);
-    if (!user) throw new UnauthorizedException('User not found');
-
-    const sessionIndex = await this.findSessionIndexByRefreshToken(
-      user,
-      refreshToken,
-    );
-    if (sessionIndex === -1)
-      throw new UnauthorizedException('Refresh token not recognized');
-
-    const session = user.sessions[sessionIndex];
-    if (!session || session.expiresAt < new Date()) {
-      user.sessions.splice(sessionIndex, 1);
-      await user.save();
-      this.clearRefreshCookie(res);
-      throw new UnauthorizedException('Refresh token expired');
-    }
-
-    const newRefreshToken = this.generateRefreshToken(user);
-    const newRefreshHash = await this.hashToken(newRefreshToken);
-    user.sessions[sessionIndex].refreshTokenHash = newRefreshHash;
-    user.sessions[sessionIndex].createdAt = new Date();
-    user.sessions[sessionIndex].expiresAt = new Date(
-      Date.now() + this.REFRESH_TOKEN_EXPIRES_MS,
-    );
-    await user.save();
-
-    // new cookie
-    this.setRefreshCookie(res, newRefreshToken);
-
-    const newAccessToken = this.generateAccessToken(user);
-    return { success: true, accessToken: newAccessToken };
-  }
-
-  // --- logout (removes current session) ---
-  async logout(req: Request, res: Response) {
-    const refreshToken = req.cookies?.refreshToken;
-    if (!refreshToken) {
-      this.clearRefreshCookie(res);
-      return { success: true };
-    }
-
-    let payload: any = null;
-    try {
-      payload = this.jwtService.verify(refreshToken, {
-        ignoreExpiration: true,
-      });
-    } catch (err) {
-      this.clearRefreshCookie(res);
-      return { success: true };
-    }
-
-    const user = await this.userModel.findById(payload.sub);
-    if (user) {
-      const sessionIndex = await this.findSessionIndexByRefreshToken(
-        user,
-        refreshToken,
-      );
-      if (sessionIndex !== -1) {
-        user.sessions.splice(sessionIndex, 1);
-        await user.save();
-      }
-    }
-
-    this.clearRefreshCookie(res);
-    return { success: true };
+  // --- logout ---
+  async logout() {
+    return { success: true, message: 'Logged out successfully.' };
   }
 
   // --- resend verification code ---
@@ -326,19 +193,14 @@ export class AuthServiceService {
       };
     }
 
-    // Generate verification code (6 digits)
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
     const resetCodeExpires = new Date(Date.now() + 60 * 60 * 1000);
 
-    console.log(`Generated reset code for ${email}: ${resetCode}`);
-
-    // Save code to user document
     user.verificationCode = resetCode;
     user.verificationCodeExpires = resetCodeExpires;
 
     await user.save();
 
-    // Send email with reset code
     const emailResult = await this.emailService.sendPasswordResetEmail(
       email,
       resetCode,
@@ -363,12 +225,6 @@ export class AuthServiceService {
       throw new BadRequestException('Invalid email or reset code');
     }
 
-    console.log(
-      `Verifying reset code for ${email}. Provided: ${code}, Stored: ${user.verificationCode}`,
-    );
-    console.log(`Code expires: ${user.verificationCodeExpires}`);
-
-    // Check if verification code is valid and not expired
     if (
       user.verificationCode !== code ||
       !user.verificationCodeExpires ||
@@ -378,7 +234,6 @@ export class AuthServiceService {
       const isExpired =
         user.verificationCodeExpires &&
         user.verificationCodeExpires < new Date();
-      console.log(`Code validation failed. Expired? ${isExpired}`);
 
       throw new BadRequestException(
         isExpired
@@ -387,12 +242,8 @@ export class AuthServiceService {
       );
     }
 
-    // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    console.log(`Resetting password for ${email}`);
-
-    // Update password and clear verification code
     user.password = hashedPassword;
     user.verificationCode = '';
     user.verificationCodeExpires = null;
