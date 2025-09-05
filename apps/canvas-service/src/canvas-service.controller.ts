@@ -6,30 +6,48 @@ import { JwtAuthGuard } from '../../auth-service/gaurd/jwt-auth.guard';
 export class CanvasServiceController {
   constructor(private readonly canvasServiceService: CanvasServiceService) {}
 
+  // @UseGuards(JwtAuthGuard)
   @Get()
-  getHello(): string {
-    return this.canvasServiceService.getHello();
+  async listBoards(): Promise<import('./canvas.schema').Canvas[]> {
+    return this.canvasServiceService.listBoards();
   }
 
-  @UseGuards(JwtAuthGuard)
+  // @UseGuards(JwtAuthGuard)
   @Get(':roomId')
-  getCanvas(@Param('roomId') roomId: string): CanvasData | null {
+  async getCanvas(@Param('roomId') roomId: string): Promise<import('./canvas.schema').Canvas | null> {
     return this.canvasServiceService.getCanvas(roomId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  // @UseGuards(JwtAuthGuard)
+  @Post('create')
+  async createBoard(@Body() body: { roomId: string; name: string; creator: string }): Promise<import('./canvas.schema').Canvas | { error: string }> {
+    try {
+      return await this.canvasServiceService.createBoard(body.roomId, body.name, body.creator);
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  // @UseGuards(JwtAuthGuard)
   @Post(':roomId/draw')
-  updateCanvas(@Param('roomId') roomId: string, @Body() drawData: any): CanvasData | { error: string } {
+  async updateCanvas(@Param('roomId') roomId: string, @Body() drawData: any): Promise<import('./canvas.schema').Canvas | { error: string }> {
     if (!this.canvasServiceService.validateDrawData(drawData)) {
       return { error: 'Invalid draw data' };
     }
-    return this.canvasServiceService.updateCanvas(roomId, drawData);
+    return this.canvasServiceService.updateCanvas(roomId, drawData as import('./canvas.schema').DrawData);
   }
 
-  @UseGuards(JwtAuthGuard)
+  // @UseGuards(JwtAuthGuard)
   @Delete(':roomId')
-  clearCanvas(@Param('roomId') roomId: string) {
-    this.canvasServiceService.clearCanvas(roomId);
+  async deleteBoard(@Param('roomId') roomId: string) {
+    await this.canvasServiceService.deleteBoard(roomId);
+    return { message: 'Board deleted' };
+  }
+
+  // @UseGuards(JwtAuthGuard)
+  @Delete(':roomId/clear')
+  async clearCanvas(@Param('roomId') roomId: string) {
+    await this.canvasServiceService.clearCanvas(roomId);
     return { message: 'Canvas cleared' };
   }
 }
