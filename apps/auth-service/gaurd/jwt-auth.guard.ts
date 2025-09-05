@@ -12,7 +12,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const request = context.switchToHttp().getRequest();
 
     // Try to get token from cookies first
-    let token: string | null = request.cookies?.['auth_token'] || null;
+    let token: string | null = request.cookies?.['refreshToken'] || null;
 
     // Fallback to Authorization header
     const authHeader = request.headers['authorization'];
