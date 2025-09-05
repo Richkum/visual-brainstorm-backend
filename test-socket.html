@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Socket Test</h1>
+    <button id="connect">Connect</button>
+    <button id="join">Join Room</button>
+    <button id="draw">Send Draw</button>
+    <div id="log"></div>
+
+    <script>
+        const log = document.getElementById('log');
+        let socket;
+
+        document.getElementById('connect').onclick = () => {
+            socket = io('http://localhost:3005');
+            socket.on('connect', () => {
+                log.innerHTML += '<p>Connected: ' + socket.id + '</p>';
+            });
+            socket.on('draw', (data) => {
+                log.innerHTML += '<p>Draw received: ' + JSON.stringify(data) + '</p>';
+            });
+            socket.on('error', (data) => {
+                log.innerHTML += '<p>Error: ' + JSON.stringify(data) + '</p>';
+            });
+        };
+
+        document.getElementById('join').onclick = () => {
+            socket.emit('joinRoom', { roomId: 'testroom', userId: 'testuser' });
+            log.innerHTML += '<p>Joined room</p>';
+        };
+
+        document.getElementById('draw').onclick = () => {
+            socket.emit('draw', {
+                roomId: 'testroom',
+                drawData: { type: 'line', points: [1,2,3,4] },
+                userId: 'testuser'
+            });
+            log.innerHTML += '<p>Sent draw</p>';
+        };
+    </script>
+</body>
+</html>
