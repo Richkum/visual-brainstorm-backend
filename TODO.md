@@ -1,8 +1,0 @@
-- [x] Analyze socket draw event flow and identify issues
-- [x] Fix canvas service URL in gateway.gateway.ts (change port from 3000 to 3004)
-- [x] Add board creation functionality
-  - [x] Update canvas schema with board metadata
-  - [x] Add REST API endpoints for board CRUD
-  - [x] Add socket events for board creation
-  - [x] Update socket service methods
-- [ ] Test board creation and draw event flow
