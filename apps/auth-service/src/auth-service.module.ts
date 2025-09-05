@@ -7,7 +7,7 @@ import { EmailService } from 'utils/email.service';
 import { User, UserSchema } from '../user.shcema';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
-import { MongooseConfigService } from 'utils/mongoose.config';
+import { MongooseAuthConfigService } from '../utils/mongoose-auth-config.service';
 import { JwtAuthGuard } from '../gaurd/jwt-auth.guard';
 import { JwtStrategy } from '../gaurd/jwt.strategy';
 
@@ -16,7 +16,7 @@ import { JwtStrategy } from '../gaurd/jwt.strategy';
     ConfigModule.forRoot({ isGlobal: true }),
 
     MongooseModule.forRootAsync({
-      useClass: MongooseConfigService,
+      useClass: MongooseAuthConfigService,
     }),
 
     MongooseModule.forFeature([{ name: 'User', schema: UserSchema }]),
