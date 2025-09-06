@@ -1,10 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { GatewayApiModule } from './gateway-api.module';
+import { config } from 'dotenv';
+
+config();
 
 async function bootstrap() {
   const app = await NestFactory.create(GatewayApiModule);
   app.enableCors({
-    origin: ['http://192.168.1.167:3009        '],
+    origin: '*',
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,

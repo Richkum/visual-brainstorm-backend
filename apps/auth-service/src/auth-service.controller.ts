@@ -66,12 +66,9 @@ export class AuthServiceController {
     return this.authServiceService.resendVerificationCode(body.email);
   }
 
-  @Get('me')
+  @Get('validate')
   @UseGuards(JwtAuthGuard)
   async getProfile(@Req() req: Request) {
-    console.log('Cookies received:', req.cookies);
-    console.log('Headers received:', req.headers);
-
     return {
       success: true,
       user: (req as any).user,
