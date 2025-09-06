@@ -1,52 +1,104 @@
-import { Controller, Get, Post, Body, Param, Delete, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  UseGuards,
+  Logger,
+} from '@nestjs/common';
 import { CanvasServiceService, CanvasData } from './canvas-service.service';
-import { JwtAuthGuard } from '../../auth-service/gaurd/jwt-auth.guard';
+import { CanvasServiceAuthGuard } from '../utils/canvas-service-auth.guard';
+import { User, AuthenticatedUser } from '../utils/user.decorator';
 
 @Controller('canvas')
 export class CanvasServiceController {
+  private readonly logger = new Logger(CanvasServiceController.name);
+
   constructor(private readonly canvasServiceService: CanvasServiceService) {}
 
-  // @UseGuards(JwtAuthGuard)
+  @UseGuards(CanvasServiceAuthGuard)
   @Get()
-  async listBoards(): Promise<import('./canvas.schema').Canvas[]> {
+  async listBoards(
+    @User() user: AuthenticatedUser,
+  ): Promise<import('./canvas.schema').Canvas[]> {
+    this.logger.debug(`User ${user.id} (${user.email}) requesting board list`);
     return this.canvasServiceService.listBoards();
   }
 
-  // @UseGuards(JwtAuthGuard)
+  @UseGuards(CanvasServiceAuthGuard)
   @Get(':roomId')
-  async getCanvas(@Param('roomId') roomId: string): Promise<import('./canvas.schema').Canvas | null> {
+  async getCanvas(
+    @Param('roomId') roomId: string,
+    @User() user: AuthenticatedUser,
+  ): Promise<import('./canvas.schema').Canvas | null> {
+    this.logger.debug(`User ${user.id} requesting canvas for room ${roomId}`);
     return this.canvasServiceService.getCanvas(roomId);
   }
 
-  // @UseGuards(JwtAuthGuard)
+  @UseGuards(CanvasServiceAuthGuard)
   @Post('create')
-  async createBoard(@Body() body: { roomId: string; name: string; creator: string }): Promise<import('./canvas.schema').Canvas | { error: string }> {
+  async createBoard(
+    @Body() body: { roomId: string; name: string },
+    @User() user: AuthenticatedUser,
+  ): Promise<import('./canvas.schema').Canvas | { error: string }> {
     try {
-      return await this.canvasServiceService.createBoard(body.roomId, body.name, body.creator);
+      this.logger.debug(
+        `User ${user.id} (${user.username}) creating board: ${body.name}`,
+      );
+
+      // Use the authenticated user's info as the creator
+      return await this.canvasServiceService.createBoard(
+        body.roomId,
+        body.name,
+        user.username || user.email || user.id, // Fallback chain for creator name
+      );
     } catch (error) {
+      this.logger.error(
+        `Failed to create board for user ${user.id}:`,
+        error.message,
+      );
       return { error: error.message };
     }
   }
 
-  // @UseGuards(JwtAuthGuard)
+  @UseGuards(CanvasServiceAuthGuard)
   @Post(':roomId/draw')
-  async updateCanvas(@Param('roomId') roomId: string, @Body() drawData: any): Promise<import('./canvas.schema').Canvas | { error: string }> {
+  async updateCanvas(
+    @Param('roomId') roomId: string,
+    @Body() drawData: any,
+    @User() user: AuthenticatedUser,
+  ): Promise<import('./canvas.schema').Canvas | { error: string }> {
+    this.logger.debug(`User ${user.id} drawing on canvas ${roomId}`);
+
     if (!this.canvasServiceService.validateDrawData(drawData)) {
       return { error: 'Invalid draw data' };
     }
-    return this.canvasServiceService.updateCanvas(roomId, drawData as import('./canvas.schema').DrawData);
+    return this.canvasServiceService.updateCanvas(
+      roomId,
+      drawData as import('./canvas.schema').DrawData,
+    );
   }
 
-  // @UseGuards(JwtAuthGuard)
+  @UseGuards(CanvasServiceAuthGuard)
   @Delete(':roomId')
-  async deleteBoard(@Param('roomId') roomId: string) {
+  async deleteBoard(
+    @Param('roomId') roomId: string,
+    @User() user: AuthenticatedUser,
+  ) {
+    this.logger.debug(`User ${user.id} deleting board ${roomId}`);
     await this.canvasServiceService.deleteBoard(roomId);
     return { message: 'Board deleted' };
   }
 
-  // @UseGuards(JwtAuthGuard)
+  @UseGuards(CanvasServiceAuthGuard)
   @Delete(':roomId/clear')
-  async clearCanvas(@Param('roomId') roomId: string) {
+  async clearCanvas(
+    @Param('roomId') roomId: string,
+    @User() user: AuthenticatedUser,
+  ) {
+    this.logger.debug(`User ${user.id} clearing canvas ${roomId}`);
     await this.canvasServiceService.clearCanvas(roomId);
     return { message: 'Canvas cleared' };
   }

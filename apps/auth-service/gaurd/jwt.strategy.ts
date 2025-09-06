@@ -12,32 +12,46 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private configService: ConfigService,
     @InjectModel('User') private userModel: Model<UserDocument>,
   ) {
+    const jwtSecret = configService.get<string>('JWT_SECRET');
+    console.log(
+      '🔑 JWT_SECRET loaded:',
+      jwtSecret ? `${jwtSecret.substring(0, 10)}...` : 'NOT FOUND',
+    );
+    console.log('🔑 JWT_SECRET length:', jwtSecret?.length || 0);
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET'),
+      secretOrKey: jwtSecret, // Make sure this is the actual secret, not undefined
     });
   }
 
   async validate(payload: any) {
-    console.log('JWT Strategy - Payload received:', payload);
-    const userId = payload.sub;
-    console.log('JWT Strategy - Looking for user with ID:', userId);
+    console.log('=== JWT VALIDATION DEBUG ===');
+    console.log('Payload received:', JSON.stringify(payload, null, 2));
+    console.log('Payload.sub (userId):', payload.sub);
+    console.log('Current time:', new Date().toISOString());
+    console.log(
+      'Token expires:',
+      payload.exp
+        ? new Date(payload.exp * 1000).toISOString()
+        : 'No expiration',
+    );
 
-    const user = await this.userModel.findById(userId);
-    console.log('JWT Strategy - User found:', user?._id);
+    const user = await this.userModel.findById(payload.sub);
+    console.log('User found:', user ? 'YES' : 'NO');
+    console.log('User ID:', user?._id);
+    console.log('==============================');
 
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
 
-    // Return a plain object with all necessary ID fields
     return {
       _id: user._id.toString(),
       id: user._id.toString(),
       userId: user._id.toString(),
       email: user.email,
-      // role: user.role,
     };
   }
 }

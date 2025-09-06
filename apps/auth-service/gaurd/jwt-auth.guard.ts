@@ -2,55 +2,72 @@ import {
   Injectable,
   ExecutionContext,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Observable, firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
+  private readonly logger = new Logger(JwtAuthGuard.name);
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
 
-    // Try to get token from cookies first
-    let token: string | null = request.cookies?.['refreshToken'] || null;
+    // Get request ID for logging
+    const requestId = request._generatedRequestId || 'unknown';
 
-    // Fallback to Authorization header
+    this.logger.debug(`[${requestId}] JwtAuthGuard: Checking authorization`);
+
+    // Check for Authorization header
     const authHeader = request.headers['authorization'];
-    if (!token && authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    }
-
-    if (!token) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      this.logger.warn(
+        `[${requestId}] JwtAuthGuard: Missing or invalid authorization header`,
+      );
       throw new UnauthorizedException('Missing or invalid authorization token');
     }
 
-    // Attach token so Passport-JWT can use it
-    request.headers['authorization'] = `Bearer ${token}`;
+    this.logger.debug(
+      `[${requestId}] JwtAuthGuard: Authorization header found`,
+    );
 
     try {
-      const result = await this.validateRequest(context);
+      const result = await super.canActivate(context);
+      this.logger.debug(
+        `[${requestId}] JwtAuthGuard: Authentication successful`,
+      );
+
+      if (result instanceof Observable) {
+        return firstValueFrom(result);
+      } else if (result as boolean) {
+        return result;
+      }
       return result;
     } catch (error) {
-      console.error('JWT Guard - Authentication failed:', error.message);
+      this.logger.error(
+        `[${requestId}] JwtAuthGuard: Authentication failed:`,
+        error.message,
+      );
       throw new UnauthorizedException('Invalid token');
     }
-  }
-
-  private async validateRequest(context: ExecutionContext): Promise<boolean> {
-    const result = super.canActivate(context);
-
-    if (result instanceof Observable) {
-      return firstValueFrom(result);
-    } else if (result instanceof Promise) {
-      return result;
-    }
-    return result;
   }
 
   handleRequest(err: any, user: any, info: any) {
     if (err || !user) {
+      this.logger.error('JWT handleRequest error:', {
+        error: err?.message,
+        hasUser: !!user,
+        info: info?.message,
+      });
       throw new UnauthorizedException('Invalid token');
     }
+
+    this.logger.debug('JWT handleRequest success:', {
+      userId: user.id,
+      email: user.email,
+    });
+
     return user;
   }
 }
