@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, UseGuards, Req } from '@nestjs/common';
 import { CanvasServiceService, CanvasData } from './canvas-service.service';
 import { JwtAuthGuard } from '../../auth-service/gaurd/jwt-auth.guard';
 
@@ -18,11 +18,12 @@ export class CanvasServiceController {
     return this.canvasServiceService.getCanvas(roomId);
   }
 
-  // @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @Post('create')
-  async createBoard(@Body() body: { roomId: string; name: string; creator: string }): Promise<import('./canvas.schema').Canvas | { error: string }> {
+  async createBoard(@Req() req, @Body() body: { roomId: string; name: string }): Promise<import('./canvas.schema').Canvas | { error: string }> {
     try {
-      return await this.canvasServiceService.createBoard(body.roomId, body.name, body.creator);
+      const creator = req.user._id;
+      return await this.canvasServiceService.createBoard(body.roomId, body.name, creator);
     } catch (error) {
       return { error: error.message };
     }

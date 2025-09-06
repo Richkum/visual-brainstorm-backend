@@ -17,9 +17,10 @@ import { JwtStrategy } from '../gaurd/jwt.strategy';
 
     MongooseModule.forRootAsync({
       useClass: MongooseAuthConfigService,
+      connectionName: 'auth',
     }),
 
-    MongooseModule.forFeature([{ name: 'User', schema: UserSchema }]),
+    MongooseModule.forFeature([{ name: 'User', schema: UserSchema }], 'auth'),
 
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({

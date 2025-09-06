@@ -40,19 +40,30 @@ export class CanvasServiceService {
     return canvas.save();
   }
 
-  async createBoard(roomId: string, name: string, creator: string): Promise<Canvas> {
-    const existing = await this.canvasModel.findOne({ roomId }).exec();
-    if (existing) {
-      throw new Error('Board with this roomId already exists');
-    }
-    const newBoard = new this.canvasModel({
-      roomId,
-      name,
-      creator,
-      strokes: [],
-      lastUpdated: new Date(),
-    });
-    return newBoard.save();
+  async createBoard(roomId: string, name: string, creator: string): Promise<Canvas & { inviteLink: string }> {
+    // Use findOneAndUpdate with upsert to handle concurrent requests safely
+    const board = await this.canvasModel.findOneAndUpdate(
+      { roomId },
+      {
+        $setOnInsert: {
+          roomId,
+          name,
+          creator,
+          strokes: [],
+          lastUpdated: new Date(),
+        }
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true
+      }
+    ).exec();
+
+    // Generate invite link with boardId and userId
+    const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invite?boardId=${board.roomId}&userId=${board.creator}`;
+
+    return { ...board.toObject(), inviteLink };
   }
 
   async listBoards(): Promise<Canvas[]> {
