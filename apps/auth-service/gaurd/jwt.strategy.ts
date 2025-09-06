@@ -10,7 +10,7 @@ import { UserDocument } from '../user.shcema';
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private configService: ConfigService,
-    @InjectModel('User') private userModel: Model<UserDocument>,
+    @InjectModel('User', 'auth') private userModel: Model<UserDocument>,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
