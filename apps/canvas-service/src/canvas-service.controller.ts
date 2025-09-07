@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Param, Delete, UseGuards, Req } from '@nestjs/common';
-import { CanvasServiceService, CanvasData } from './canvas-service.service';
+import { CanvasServiceService,  } from './canvas-service.service';
 import { JwtAuthGuard } from '../../auth-service/gaurd/jwt-auth.guard';
 
 @Controller('canvas')
