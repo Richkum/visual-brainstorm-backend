@@ -7,9 +7,9 @@ import { EmailService } from 'utils/email.service';
 import { User, UserSchema } from '../user.shcema';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
-import { MongooseAuthConfigService } from '../utils/mongoose-auth-config.service';
 import { JwtAuthGuard } from '../gaurd/jwt-auth.guard';
 import { JwtStrategy } from '../gaurd/jwt.strategy';
+import { MongooseAuthConfigService } from '../utils/mongoose-auth-config.service';
 
 @Module({
   imports: [
@@ -17,10 +17,9 @@ import { JwtStrategy } from '../gaurd/jwt.strategy';
 
     MongooseModule.forRootAsync({
       useClass: MongooseAuthConfigService,
-      connectionName: 'auth',
     }),
 
-    MongooseModule.forFeature([{ name: 'User', schema: UserSchema }], 'auth'),
+    MongooseModule.forFeature([{ name: 'User', schema: UserSchema }]),
 
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({

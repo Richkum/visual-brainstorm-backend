@@ -27,7 +27,7 @@ export class AuthServiceController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authServiceService.register(userData);
+    return this.authServiceService.register(userData, req);
   }
 
   @Post('verify-email')
@@ -36,7 +36,7 @@ export class AuthServiceController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authServiceService.verifyEmail(body.email, body.code);
+    return this.authServiceService.verifyEmail(body.email, body.code, req, res);
   }
 
   @Post('login')
@@ -45,20 +45,20 @@ export class AuthServiceController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authServiceService.login(body.email, body.password);
+    return this.authServiceService.login(body.email, body.password, req, res);
   }
 
-  // @Post('refresh')
-  // async refresh(
-  //   @Req() req: Request,
-  //   @Res({ passthrough: true }) res: Response,
-  // ) {
-  //   return this.authServiceService.refresh(req, res);
-  // }
+  @Post('refresh')
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.authServiceService.refresh(req, res);
+  }
 
   @Post('logout')
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    return this.authServiceService.logout();
+    return this.authServiceService.logout(req, res);
   }
 
   @Post('resend-code')

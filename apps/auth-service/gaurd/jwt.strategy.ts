@@ -10,7 +10,7 @@ import { UserDocument } from '../user.shcema';
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private configService: ConfigService,
-    @InjectModel('User', 'auth') private userModel: Model<UserDocument>,
+    @InjectModel('User') private userModel: Model<UserDocument>,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -35,7 +35,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       _id: user._id.toString(),
       id: user._id.toString(),
-      userId: user._id.toString(),
+      userId: user._id.toString(), // Added this for backwards compatibility
       email: user.email,
       // role: user.role,
     };
