@@ -21,6 +21,10 @@ console.log(
 
 async function bootstrap() {
   const app = await NestFactory.create(CanvasServiceModule);
+
+  app.enableCors({
+    origin: '*',
+  });
   await app.listen(process.env.port ?? 3004);
 }
 bootstrap();

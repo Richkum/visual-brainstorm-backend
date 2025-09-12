@@ -2,21 +2,25 @@
 import { HydratedDocument, Schema, Types } from 'mongoose';
 
 // DrawData schema for individual strokes/shapes
-const DrawDataSchema = new Schema({
-  id: { type: String, required: true }, // no unique
-  type: {
-    type: String,
-    required: true,
-    enum: ['line', 'rectangle', 'circle', 'text'],
+
+const DrawDataSchema = new Schema(
+  {
+    id: { type: String, required: true, unique: true },
+    type: {
+      type: String,
+      required: true,
+      enum: ['line', 'rectangle', 'circle', 'text'],
+    },
+    x: { type: Number, required: true, default: 0 },
+    y: { type: Number, required: true, default: 0 },
+    color: { type: String, required: true, default: '#000000' },
+    points: { type: [Number], default: [] },
+    width: { type: Number, default: 0 },
+    height: { type: Number, default: 0 },
+    text: { type: String, default: '' },
   },
-  x: { type: Number, required: true, default: 0 },
-  y: { type: Number, required: true, default: 0 },
-  color: { type: String, required: true, default: '#000000' },
-  points: { type: [Number], default: [] },
-  width: { type: Number, default: 0 },
-  height: { type: Number, default: 0 },
-  text: { type: String, default: '' },
-});
+  { _id: false }, // No separate _id for embedded documents
+);
 
 // Canvas schema for room-based canvas data
 export const CanvasSchema = new Schema(
@@ -67,4 +71,5 @@ export interface Canvas {
 }
 
 export type CanvasDocument = HydratedDocument<Canvas>;
+
 export type DrawDataDocument = DrawData;

@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { Canvas, DrawData, CanvasDocument } from './canvas.schema';
 import { nanoid } from 'nanoid';
 
+
 export interface CanvasData {
   roomId: string;
   strokes: DrawData[];
@@ -24,6 +25,7 @@ export class CanvasServiceService {
     return this.canvasModel.findOne({ roomId }).exec();
   }
 
+
   async updateCanvas(roomId: string, drawData: DrawData): Promise<Canvas> {
     let canvas = await this.canvasModel.findOne({ roomId }).exec();
     if (!canvas) {
@@ -37,28 +39,37 @@ export class CanvasServiceService {
     }
 
     if (!drawData.id) drawData.id = nanoid(); // ensure unique id
+
     canvas.strokes.push(drawData);
     canvas.lastUpdated = new Date();
     return canvas.save();
   }
 
-  async createBoard(
-    roomId: string,
-    name: string,
-    creator: string,
-  ): Promise<Canvas> {
-    const existing = await this.canvasModel.findOne({ roomId }).exec();
-    if (existing) {
-      throw new Error('Board with this roomId already exists');
-    }
-    const newBoard = new this.canvasModel({
-      roomId,
-      name,
-      creator,
-      strokes: [],
-      lastUpdated: new Date(),
-    });
-    return newBoard.save();
+
+  async createBoard(roomId: string, name: string, creator: string): Promise<Canvas & { inviteLink: string }> {
+    // Use findOneAndUpdate with upsert to handle concurrent requests safely
+    const board = await this.canvasModel.findOneAndUpdate(
+      { roomId },
+      {
+        $setOnInsert: {
+          roomId,
+          name,
+          creator,
+          strokes: [],
+          lastUpdated: new Date(),
+        }
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true
+      }
+    ).exec();
+
+    // Generate invite link with boardId and userId
+    const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invite?boardId=${board.roomId}&userId=${board.creator}`;
+
+    return { ...board.toObject(), inviteLink };
   }
 
   async listBoards(): Promise<Canvas[]> {
@@ -75,11 +86,7 @@ export class CanvasServiceService {
 
   validateDrawData(drawData: DrawData): boolean {
     // Basic validation: check if drawData has required fields
-    return !!(
-      drawData &&
-      typeof drawData === 'object' &&
-      drawData.type &&
-      drawData.id
-    );
+
+    return !!(drawData && typeof drawData === 'object' && drawData.type && drawData.id);
   }
 }

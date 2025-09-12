@@ -64,6 +64,15 @@
         "tsConfigPath": "apps/gateway-api/tsconfig.app.json"
       }
     },
+    "socket-service": {
+      "type": "application",
+      "root": "apps/socket-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/socket-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/socket-service/tsconfig.app.json"
+      }
+    },
     "visual-brainstorm-backend": {
       "type": "application",
       "root": "apps/visual-brainstorm-backend",

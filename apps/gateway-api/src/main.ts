@@ -8,11 +8,13 @@ async function bootstrap() {
   const app = await NestFactory.create(GatewayApiModule);
   app.enableCors({
     origin: '*',
+
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
   });
 
-  await app.listen(3006);
+
+  await app.listen(3007);
 }
 bootstrap();
