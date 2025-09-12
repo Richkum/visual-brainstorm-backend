@@ -7,6 +7,8 @@ import { EmailService } from 'utils/email.service';
 import { User, UserSchema } from '../user.shcema';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
+import { MongooseAuthConfigService } from '../utils/mongoose-auth-config.service';
+
 import { JwtAuthGuard } from '../gaurd/jwt-auth.guard';
 import { JwtStrategy } from '../gaurd/jwt.strategy';
 import { MongooseAuthConfigService } from '../utils/mongoose-auth-config.service';

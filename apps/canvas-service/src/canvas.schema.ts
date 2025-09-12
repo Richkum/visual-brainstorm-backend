@@ -2,6 +2,7 @@
 import { HydratedDocument, Schema, Types } from 'mongoose';
 
 // DrawData schema for individual strokes/shapes
+
 const DrawDataSchema = new Schema(
   {
     id: { type: String, required: true, unique: true },
@@ -70,4 +71,5 @@ export interface Canvas {
 }
 
 export type CanvasDocument = HydratedDocument<Canvas>;
+
 export type DrawDataDocument = DrawData;

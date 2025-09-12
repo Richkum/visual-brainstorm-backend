@@ -5,6 +5,7 @@ class SocketService {
 
   connect() {
     if (!this.socket) {
+
       this.socket = io('http://localhost:3005');
       this.socket.on('connect', () => {
         console.log('Connected to socket service');

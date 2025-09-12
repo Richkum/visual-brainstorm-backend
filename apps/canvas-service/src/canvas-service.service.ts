@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Canvas, DrawData, CanvasDocument } from './canvas.schema';
+import { nanoid } from 'nanoid';
+
 
 export interface CanvasData {
   roomId: string;
@@ -35,10 +37,14 @@ export class CanvasServiceService {
         lastUpdated: new Date(),
       });
     }
+
+    if (!drawData.id) drawData.id = nanoid(); // ensure unique id
+
     canvas.strokes.push(drawData);
     canvas.lastUpdated = new Date();
     return canvas.save();
   }
+
 
   async createBoard(roomId: string, name: string, creator: string): Promise<Canvas & { inviteLink: string }> {
     // Use findOneAndUpdate with upsert to handle concurrent requests safely
@@ -80,6 +86,7 @@ export class CanvasServiceService {
 
   validateDrawData(drawData: DrawData): boolean {
     // Basic validation: check if drawData has required fields
+
     return !!(drawData && typeof drawData === 'object' && drawData.type && drawData.id);
   }
 }

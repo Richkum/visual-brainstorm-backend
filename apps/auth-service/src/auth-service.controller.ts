@@ -27,7 +27,7 @@ export class AuthServiceController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authServiceService.register(userData, req);
+    return this.authServiceService.register(userData);
   }
 
   @Post('verify-email')
@@ -36,7 +36,7 @@ export class AuthServiceController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authServiceService.verifyEmail(body.email, body.code, req, res);
+    return this.authServiceService.verifyEmail(body.email, body.code);
   }
 
   @Post('login')
@@ -45,20 +45,20 @@ export class AuthServiceController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authServiceService.login(body.email, body.password, req, res);
+    return this.authServiceService.login(body.email, body.password);
   }
 
-  @Post('refresh')
-  async refresh(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    return this.authServiceService.refresh(req, res);
-  }
+  // @Post('refresh')
+  // async refresh(
+  //   @Req() req: Request,
+  //   @Res({ passthrough: true }) res: Response,
+  // ) {
+  //   return this.authServiceService.refresh(req, res);
+  // }
 
   @Post('logout')
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    return this.authServiceService.logout(req, res);
+    return this.authServiceService.logout();
   }
 
   @Post('resend-code')
@@ -66,12 +66,9 @@ export class AuthServiceController {
     return this.authServiceService.resendVerificationCode(body.email);
   }
 
-  @Get('me')
+  @Get('validate')
   @UseGuards(JwtAuthGuard)
   async getProfile(@Req() req: Request) {
-    console.log('Cookies received:', req.cookies);
-    console.log('Headers received:', req.headers);
-
     return {
       success: true,
       user: (req as any).user,
