@@ -11,6 +11,8 @@ export class GatewayApiService {
     method: string,
     body?: any,
     headers?: any,
+    req?: any,
+    res?: any,
   ) {
     const baseUrls = {
       auth: 'http://localhost:3006',
@@ -19,7 +21,6 @@ export class GatewayApiService {
       socket: 'http://localhost:3005',
     };
 
-    // detect target service by path
     let targetUrl = '';
     if (path.startsWith('/auth')) targetUrl = baseUrls.auth + path;
     else if (path.startsWith('/canvas')) targetUrl = baseUrls.canvas + path;
@@ -33,9 +34,21 @@ export class GatewayApiService {
           url: targetUrl,
           method,
           data: body,
-          headers,
+          headers: {
+            ...headers,
+            cookie: req?.headers?.cookie, // 🔑 forward incoming cookies
+          },
+          withCredentials: true, // 🔑 allow axios to handle cookies
+          validateStatus: () => true, // let Nest handle errors
         }),
       );
+
+      // 🔑 forward Set-Cookie headers back to client
+      const setCookie = response.headers['set-cookie'];
+      if (setCookie && res) {
+        res.setHeader('set-cookie', setCookie);
+      }
+
       return response.data;
     } catch (error) {
       throw new HttpException(
