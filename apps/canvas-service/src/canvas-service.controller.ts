@@ -57,7 +57,7 @@ export class CanvasServiceController {
       return await this.canvasServiceService.createBoard(
         body.roomId,
         body.name,
-        user.username || user.email || user.id, // Fallback chain for creator name
+        user.username || user.email || user.id,
       );
     } catch (error) {
       this.logger.error(
