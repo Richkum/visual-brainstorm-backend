@@ -9,7 +9,6 @@ console.log('Looking for .env at:', path.join(process.cwd(), '.env'));
 
 config();
 
-// Add this debug right after config()
 console.log(
   'After config() - GATEWAY_SERVICE_TOKEN:',
   process.env.GATEWAY_SERVICE_TOKEN ? 'LOADED' : 'NOT LOADED',

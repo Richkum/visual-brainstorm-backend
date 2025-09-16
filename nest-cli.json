@@ -72,6 +72,15 @@
       "compilerOptions": {
         "tsConfigPath": "apps/visual-brainstorm-backend/tsconfig.app.json"
       }
+    },
+    "websocket-service": {
+      "type": "application",
+      "root": "apps/websocket-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/websocket-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/websocket-service/tsconfig.app.json"
+      }
     }
   }
 }

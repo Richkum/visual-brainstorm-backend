@@ -1,4 +1,3 @@
-// canvas-service-auth.guard.ts
 import {
   Injectable,
   CanActivate,
@@ -21,7 +20,6 @@ export class CanvasServiceAuthGuard implements CanActivate {
       `[${requestId}] CanvasServiceAuthGuard: Checking service authentication`,
     );
 
-    // Check if request comes from gateway with service token
     const serviceToken = request.headers['x-service-token'];
     const expectedToken = process.env.GATEWAY_SERVICE_TOKEN;
 
@@ -44,7 +42,6 @@ export class CanvasServiceAuthGuard implements CanActivate {
       throw new UnauthorizedException('User not authenticated');
     }
 
-    // Attach user info to request for use in controllers
     request.user = {
       id: userId,
       userId: userId,

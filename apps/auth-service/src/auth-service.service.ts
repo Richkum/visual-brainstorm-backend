@@ -131,26 +131,49 @@ export class AuthServiceService {
 
   // --- login ---
   async login(email: string, password: string) {
+    console.log(`Login attempt for email: ${email}`);
+
     const user = await this.userModel.findOne({ email });
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) {
+      console.log(`Login failed: User not found for email: ${email}`);
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
     if (!user.isVerified) {
       console.log(`Login failed: User not verified for email: ${email}`);
       throw new UnauthorizedException(
         'Email not verified. Please verify your email first.',
       );
     }
-    console.log(`Login successful for verified user: ${email}`);
+
+    console.log(`User found and verified: ${email}`);
+
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid)
+    if (!isPasswordValid) {
+      console.log(`Login failed: Invalid password for email: ${email}`);
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    console.log(`Password validated successfully for email: ${email}`);
 
     const accessToken = this.generateAccessToken(user);
+    console.log(
+      `Access token generated for user ${email}: ${accessToken.substring(0, 20)}...`,
+    ); // Log first 20 chars for security
 
-    return {
+    const response = {
       success: true,
       accessToken,
       user: { id: user._id, username: user.username, email: user.email },
     };
+
+    console.log(
+      `Login successful. Sending response to frontend for user: ${email}`,
+    );
+    console.log(`Response contains token: ${!!response.accessToken}`);
+    console.log(`Token length: ${response.accessToken.length} characters`);
+
+    return response;
   }
 
   // --- logout ---

@@ -56,7 +56,7 @@ export class GatewayApiService {
     const isInternalValidationCall =
       path === '/auth/validate' &&
       req?.headers?.['x-service-token'] === process.env.GATEWAY_SERVICE_TOKEN &&
-      req?._isInternalCall === true; // Add this flag for internal calls
+      req?._isInternalCall === true;
 
     if (isInternalValidationCall) {
       this.logger.warn(
@@ -65,20 +65,18 @@ export class GatewayApiService {
       return { success: true, loopPrevented: true };
     }
 
-    // If calling canvas and client provided Authorization, validate via auth service
     if (targetUrl.startsWith(baseUrls.canvas) && req?.headers?.authorization) {
       try {
         this.logger.debug(
           `[${requestId}] Validating token for canvas request...`,
         );
 
-        // Create a new request object for internal validation
         const internalReq = {
           headers: {
             authorization: req.headers.authorization,
             'x-service-token': process.env.GATEWAY_SERVICE_TOKEN,
           },
-          _isInternalCall: true, // Mark this as internal
+          _isInternalCall: true,
           _generatedRequestId: requestId,
         };
 
@@ -127,15 +125,12 @@ export class GatewayApiService {
       }
     }
 
-    // Ensure service token is always attached
     forwardHeaders['x-service-token'] = process.env.GATEWAY_SERVICE_TOKEN;
 
-    // Optional: log all headers for debugging
     this.logger.debug(
       `[${requestId}] Forwarding headers: ${JSON.stringify(forwardHeaders, null, 2)}`,
     );
 
-    // Forward the request to target service
     try {
       this.logger.debug(`[${requestId}] Forwarding request to: ${targetUrl}`);
 
