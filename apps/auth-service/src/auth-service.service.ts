@@ -8,7 +8,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { Request, Response } from 'express';
 import { EmailService } from 'utils/email.service';
 import { UserDocument } from '../user.shcema';
 
@@ -17,10 +16,10 @@ export class AuthServiceService {
   private ACCESS_TOKEN_EXPIRES = '30d';
 
   constructor(
-    @InjectModel('User') private userModel: Model<UserDocument>,
+    @InjectModel('User', 'authConnection') private userModel: Model<UserDocument>,
     private jwtService: JwtService,
     private emailService: EmailService,
-  ) {}
+  ) { }
 
   // --- helpers ---
   private generateAccessToken(user: UserDocument) {

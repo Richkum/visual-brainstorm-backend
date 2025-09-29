@@ -64,7 +64,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     }
 
     this.logger.debug('JWT handleRequest success:', {
-      userId: user.id,
+      id: user.id,
       email: user.email,
     });
 

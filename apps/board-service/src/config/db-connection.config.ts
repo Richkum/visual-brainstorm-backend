@@ -7,21 +7,21 @@ import { Connection } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class MongooseAuthConfigService implements MongooseOptionsFactory {
-  private readonly logger = new Logger(MongooseAuthConfigService.name);
+export class MongooseConfigService implements MongooseOptionsFactory {
+  private readonly logger = new Logger(MongooseConfigService.name);
 
   constructor(private configService: ConfigService) { }
 
   createMongooseOptions(): MongooseModuleOptions {
-    const uri = this.configService.get<string>('MONGO_AUTH_URL');
-    this.logger.log('MONGO_AUTH_URL from env:', process.env.MONGO_AUTH_URL);
+    const uri = this.configService.get<string>('MONGO_BOARD_URL');
+    this.logger.log('MONGO_BOARD_URL from env:', process.env.MONGO_BOARD_URL);
 
     if (!uri) {
-      throw new Error('MONGO_AUTH_URL environment variable is not set');
+      throw new Error('MONGO_BOARD_URL environment variable is not set');
     }
 
     const maskedUrl = this.maskMongoUrl(uri);
-    this.logger.log(`Connecting to auth database: ${maskedUrl}`);
+    this.logger.log(`Connecting to board database: ${maskedUrl}`);
 
     return {
       uri: uri,
@@ -30,10 +30,10 @@ export class MongooseAuthConfigService implements MongooseOptionsFactory {
           this.logDatabaseStats(connection);
         });
         connection.on('error', (err) => {
-          this.logger.error('❌ Auth MongoDB connection error:', err.message);
+          this.logger.error('❌ board MongoDB connection error:', err.message);
         });
         connection.on('disconnected', () => {
-          this.logger.warn('⚠️ Auth MongoDB disconnected!');
+          this.logger.warn('⚠️ board MongoDB disconnected!');
         });
         return connection;
       },
@@ -57,16 +57,16 @@ export class MongooseAuthConfigService implements MongooseOptionsFactory {
         const dbInfo = await connection.db.stats();
 
         this.logger.debug(
-          `Auth MongoDB server version: ${serverStatus.version}`,
+          `board MongoDB server version: ${serverStatus.version}`,
         );
-        this.logger.debug(`Auth Database name: ${dbInfo.db}`);
-        this.logger.debug(`Auth Collections count: ${dbInfo.collections}`);
-        this.logger.log('✅ Successfully connected to auth database');
+        this.logger.debug(`board Database name: ${dbInfo.db}`);
+        this.logger.debug(`board Collections count: ${dbInfo.collections}`);
+        this.logger.log('✅ Successfully connected to board database');
       } else {
-        this.logger.warn('Auth connection DB instance not available');
+        this.logger.warn('board connection DB instance not available');
       }
     } catch (err) {
-      this.logger.warn('Could not fetch auth database stats:', err.message);
+      this.logger.warn('Could not fetch board database stats:', err.message);
     }
   }
 }

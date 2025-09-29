@@ -31,7 +31,7 @@ export class EmailService {
   }
 
   async sendVerificationEmail(email: string, code: string, username: string) {
-    const appName = 'VISUAL-BRAINSTORM CANVAS';
+    const appName = 'Ideea';
 
     try {
       this.logger.log(`Attempting to send verification email to: ${email}`);

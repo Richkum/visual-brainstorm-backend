@@ -10,7 +10,7 @@ import { UserDocument } from '../user.shcema';
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private configService: ConfigService,
-    @InjectModel('User') private userModel: Model<UserDocument>,
+    @InjectModel('User', 'authConnection') private userModel: Model<UserDocument>,
   ) {
     const jwtSecret = configService.get<string>('JWT_SECRET');
     console.log(
@@ -48,10 +48,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     return {
-      _id: user._id.toString(),
-      id: user._id.toString(),
-      userId: user._id.toString(),
-      email: user.email,
+      id: payload.sub,
+      email: payload.email,
+      username: payload.username,
     };
   }
 }

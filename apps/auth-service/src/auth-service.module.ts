@@ -4,24 +4,30 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AuthServiceController } from './auth-service.controller';
 import { AuthServiceService } from './auth-service.service';
 import { EmailService } from 'utils/email.service';
-import { User, UserSchema } from '../user.shcema';
+import { UserSchema } from '../user.shcema';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
-import { MongooseAuthConfigService } from '../utils/mongoose-auth-config.service';
-
 import { JwtAuthGuard } from '../gaurd/jwt-auth.guard';
 import { JwtStrategy } from '../gaurd/jwt.strategy';
 import { MongooseAuthConfigService } from '../utils/mongoose-auth-config.service';
+import { join } from 'path';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-
-    MongooseModule.forRootAsync({
-      useClass: MongooseAuthConfigService,
+    ConfigModule.forRoot({
+      isGlobal: true,
     }),
 
-    MongooseModule.forFeature([{ name: 'User', schema: UserSchema }]),
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useClass: MongooseAuthConfigService,
+      connectionName: 'authConnection',
+    }),
+
+    MongooseModule.forFeature(
+      [{ name: 'User', schema: UserSchema }],
+      'authConnection'
+    ),
 
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
@@ -36,4 +42,4 @@ import { MongooseAuthConfigService } from '../utils/mongoose-auth-config.service
   controllers: [AuthServiceController],
   providers: [AuthServiceService, EmailService, JwtAuthGuard, JwtStrategy],
 })
-export class AuthServiceModule {}
+export class AuthServiceModule { }

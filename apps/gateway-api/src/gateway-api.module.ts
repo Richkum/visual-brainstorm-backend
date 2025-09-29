@@ -1,13 +1,9 @@
 import { Module } from '@nestjs/common';
-import { GatewayApiController } from './gateway-api.controller';
-import { GatewayApiService } from './gateway-api.service';
-import { HttpModule } from '@nestjs/axios';
-
-import { GatewayGateway } from './gateway.gateway';
+import { GatewayController } from './gateway-api.controller';
+import { GatewayService } from './gateway-api.service';
 
 @Module({
-  imports: [HttpModule],
-  controllers: [GatewayApiController],
-  providers: [GatewayApiService, GatewayGateway],
+  controllers: [GatewayController],
+  providers: [GatewayService],
 })
-export class GatewayApiModule {}
+export class GateWayApiModule { }
