@@ -22,9 +22,6 @@ import { BoardService } from './board-service.service';
 
 @Controller('boards')
 export class BoardController {
-  getHello(): any {
-    throw new Error('Method not implemented.');
-  }
   constructor(private readonly boardService: BoardService) { }
 
   @Post()

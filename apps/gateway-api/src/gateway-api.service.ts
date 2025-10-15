@@ -19,14 +19,15 @@ export type GatewayServices = {
   auth: string;
   board: string;
   realtime: string;
+  canvas: string;
 };
 @Injectable()
 export class GatewayService {
   private readonly services: GatewayServices = {
     auth: 'http://localhost:3001',
     board: 'http://localhost:3002',
+    canvas: 'http://localhost:3003',
     realtime: 'http://localhost:5000',
-    // gateway: 'http://localhost:4001',
   };
 
   async validateToken(authHeader?: string): Promise<AuthUser> {

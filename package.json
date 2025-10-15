@@ -14,10 +14,10 @@
     "start:auth:dev": "nest start auth-service --watch",
     "start:board": "nest start board-service",
     "start:board:dev": "nest start board-service --watch",
+    "start:canvas": "nest start canvas-service",
+    "start:canvas:dev": "nest start canvas-service --watch",
     "start:chat": "nest start chat-service",
     "start:chat:dev": "nest start chat-service --watch",
-    "start:socket": "nest start socket-service",
-    "start:socket:dev": "nest start socket-service --watch",
     "start:gateway": "nest start gateway-api",
     "start:gateway:dev": "nest start gateway-api --watch",
     "start:websocket": "nest start real-time",
@@ -60,7 +60,8 @@
     "rxjs": "^7.8.2",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "yjs": "^13.6.27"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

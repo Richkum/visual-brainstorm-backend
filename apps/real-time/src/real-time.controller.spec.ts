@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RealTimeController } from './real-time.controller';
-import { RealTimeService } from './real-time.service';
+import { RealtimeService } from './real-time.service';
 
 describe('RealTimeController', () => {
   let realTimeController: RealTimeController;
@@ -8,7 +8,7 @@ describe('RealTimeController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [RealTimeController],
-      providers: [RealTimeService],
+      providers: [RealtimeService],
     }).compile();
 
     realTimeController = app.get<RealTimeController>(RealTimeController);

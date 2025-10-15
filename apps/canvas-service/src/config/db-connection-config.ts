@@ -4,13 +4,18 @@ import {
 } from '@nestjs/mongoose';
 import { Injectable, Logger } from '@nestjs/common';
 import { Connection } from 'mongoose';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class MongooseCanvasConfigService implements MongooseOptionsFactory {
-  private readonly logger = new Logger(MongooseCanvasConfigService.name);
+export class MongooseConfigService implements MongooseOptionsFactory {
+  private readonly logger = new Logger(MongooseConfigService.name);
+
+  constructor(private configService: ConfigService) { }
 
   createMongooseOptions(): MongooseModuleOptions {
-    const uri = process.env.MONGO_CANVAS_URL;
+    const uri = this.configService.get<string>('MONGO_CANVAS_URL');
+    this.logger.log('MONGO_CANVAS_URL from env:', process.env.MONGO_CANVAS_URL);
+
     if (!uri) {
       throw new Error('MONGO_CANVAS_URL environment variable is not set');
     }
@@ -25,10 +30,10 @@ export class MongooseCanvasConfigService implements MongooseOptionsFactory {
           this.logDatabaseStats(connection);
         });
         connection.on('error', (err) => {
-          this.logger.error('❌ Canvas MongoDB connection error:', err.message);
+          this.logger.error('❌ canvas MongoDB connection error:', err.message);
         });
         connection.on('disconnected', () => {
-          this.logger.warn('⚠️ Canvas MongoDB disconnected!');
+          this.logger.warn('⚠️ canvas MongoDB disconnected!');
         });
         return connection;
       },
@@ -52,13 +57,13 @@ export class MongooseCanvasConfigService implements MongooseOptionsFactory {
         const dbInfo = await connection.db.stats();
 
         this.logger.debug(
-          `Canvas MongoDB server version: ${serverStatus.version}`,
+          `canvas MongoDB server version: ${serverStatus.version}`,
         );
-        this.logger.debug(`Canvas Database name: ${dbInfo.db}`);
-        this.logger.debug(`Canvas Collections count: ${dbInfo.collections}`);
+        this.logger.debug(`canvas Database name: ${dbInfo.db}`);
+        this.logger.debug(`canvas Collections count: ${dbInfo.collections}`);
         this.logger.log('✅ Successfully connected to canvas database');
       } else {
-        this.logger.warn('Canvas connection DB instance not available');
+        this.logger.warn('canvas connection DB instance not available');
       }
     } catch (err) {
       this.logger.warn('Could not fetch canvas database stats:', err.message);

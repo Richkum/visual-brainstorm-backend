@@ -18,8 +18,4 @@ export class RealtimeService {
   getHello(): string {
     return 'Realtime Service is running!';
   }
-
-  processYjsUpdate(userId: string, boardId: string, update: Buffer) {
-    // Placeholder for future Yjs logic (broadcast/persistence)
-  }
 }

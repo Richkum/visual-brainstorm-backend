@@ -1,41 +1,69 @@
-// src/realtime/board.gateway.ts
-
 import {
   WebSocketGateway,
   SubscribeMessage,
   WebSocketServer,
   WsException,
   OnGatewayConnection,
+  OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Injectable, UseGuards } from '@nestjs/common';
+import { Logger, } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { WsJwtGuard } from '../auth/ws-jwt.guard';
 import { EventPattern } from '@nestjs/microservices';
 import axios from 'axios';
-import { RealtimeService } from '../real-time.service';
 
 type BoardRole = 'viewer' | 'commenter' | 'editor' | 'owner';
+interface BoardSocket extends Socket {
+  data: { userId?: string; role?: BoardRole; boardId?: string; user: any };
+}
 
-@Injectable()
-@UseGuards(WsJwtGuard)
-@WebSocketGateway(4000, {
-  cors: { origin: '*' },
-  namespace: 'board',
+@WebSocketGateway({
+  namespace: '/board',
+  cors: {
+    origin: '*',
+    credentials: true,
+  },
 })
-export class BoardGateway implements OnGatewayConnection {
-  @WebSocketServer() server: Server;
+export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  @WebSocketServer()
+  server: Server;
 
   private readonly API_GATEWAY_URL = 'http://localhost:4001';
 
-  constructor(
-    private readonly realtimeService: RealtimeService,
-  ) { }
+  private readonly logger = new Logger(BoardGateway.name);
 
-  handleConnection(client: Socket) {
-    const { userId } = client.data;
-    if (!userId) {
+  constructor(private readonly wsJwtGuard: WsJwtGuard) { }
+
+  async handleConnection(client: Socket) {
+    // Manually run the guard to populate client.data.user (or userId)
+    // and catch the WsException if validation fails.
+    try {
+      await this.wsJwtGuard.canActivate({
+        switchToWs: () => ({ getClient: () => client }),
+      } as any);
+    } catch (e) {
+
+      // The guard failed validation. It already logged the error (see WsJwtGuard.ts).
+      // The socket connection is implicitly denied in the next check.
+      this.logger.debug(`Guard failed for Socket ID: ${client.id}. Disconnecting.`);
+    }
+
+    // After the guard, we check for the required userId
+    if (!client.data.userId) {
+      this.logger.error(`Connection denied. Socket ID: ${client.id}. Missing userId after guard.`);
       client.disconnect(true);
       return;
+    }
+
+    // All clear, user is authenticated
+    this.logger.log(`board connected to namespace '/board'. User ID: ${client.data.userId}, Socket ID: ${client.id}`);
+  }
+
+  handleDisconnect(client: Socket) {
+    if (client.data.userId) {
+      this.logger.log(`User disconnected from namespace '/user'. User ID: ${client.data.userId}, Socket ID: ${client.id}`);
+    } else {
+      this.logger.warn(`Unauthenticated socket disconnected. Socket ID: ${client.id}`);
     }
   }
 
@@ -46,12 +74,10 @@ export class BoardGateway implements OnGatewayConnection {
     const { userId } = client.data;
     const authToken = client.handshake.auth.token as string;
 
-    // HTTP call to API Gateway -> Board Service for membership
     try {
       const res = await axios.get<{
         message: string; isMember: boolean; role: BoardRole
       }>(
-        // API Gateway path: /board/boards/:id/membership
         `${this.API_GATEWAY_URL}/board/boards/${boardId}/membership`,
         {
           headers: {
@@ -62,15 +88,29 @@ export class BoardGateway implements OnGatewayConnection {
         }
       );
 
+      this.logger.debug(`Membership check response: ${JSON.stringify(res.data)}`);
+
       if (res.status !== 200 || !res.data.isMember) {
         const errorDetail = res.data?.message || 'Access Denied: Not a member.';
         throw new WsException(errorDetail);
       }
 
       const memberRole: BoardRole = res.data.role;
-      client.data.role = memberRole;
+      client.data.role = memberRole; // Store role for permission checks
+      client.data.boardId = boardId;
+
+      this.logger.log(`User ${userId} joined room ${boardId} as ${memberRole}`);
 
       client.join(boardId);
+
+      // Fetch initial state from Canvas Service via API Gateway
+      const canvasRes = await axios.get<string>(
+        `${this.API_GATEWAY_URL}/canvas/${boardId}/state`,
+      );
+      const stateBase64 = canvasRes.data;
+
+      // 3. Send the full initial state ONLY to the joining client
+      client.emit('init-state', stateBase64);
       client.emit('boardJoined', { boardId, status: 'success', role: memberRole });
 
     } catch (e) {
@@ -79,21 +119,51 @@ export class BoardGateway implements OnGatewayConnection {
     }
   }
 
-  // --- Yjs and Presence Handlers (Placeholder) ---
+  // 💥 FIX 1: Handle Yjs updates from client (persists to DB via Canvas Service & broadcasts)
   @SubscribeMessage('yjsUpdate')
-  handleYjsUpdate(client: Socket, payload: { boardId: string; update: Buffer }) {
-    throw new WsException('Yjs is not yet implemented.');
+  async handleYjsUpdate(client: BoardSocket, payload: { boardId: string; update: string }) {
+    const { boardId, update } = payload;
+    const { userId, role } = client.data;
+
+    // Optional: Permission Check - only 'editor' and 'owner' should send Yjs updates
+    if (role === 'viewer' || role === 'commenter') {
+      this.logger.warn(`User ${userId} (Role: ${role}) tried to send yjsUpdate on board ${boardId}.`);
+      return;
+    }
+
+    if (!client.rooms.has(boardId)) return; // Client is not in the room
+
+    // 1. Send to Canvas Service for persistence and internal Y.Doc application (HTTP call)
+    try {
+      // NOTE: We rely on the Canvas Service to handle the Buffer conversion from base64
+      await axios.post(
+        `${this.API_GATEWAY_URL}/${boardId}/update`,
+        { update }, // Payload is { update: updateBase64String }
+        // Pass necessary headers for internal Canvas Service security/logging
+        { headers: { 'x-user-id': userId, 'x-board-id': boardId } }
+      );
+    } catch (e) {
+      this.logger.error(`Failed to persist Yjs update for board ${boardId}. Error: ${e.message}`);
+    }
+
+    // 2. Broadcast the update to all other clients in the room
+    client.to(boardId).emit('yjsUpdate', update);
   }
 
-  @SubscribeMessage('presenceUpdate')
-  handlePresenceUpdate(client: Socket, payload: { boardId: string; awareness: any }) {
-    client.to(payload.boardId).emit('presenceUpdate', {
-      userId: client.data.userId,
-      awareness: payload.awareness,
-    });
+  // 💥 FIX 2: Handle Awareness updates from client (broadcasts only)
+  @SubscribeMessage('awarenessUpdate')
+  handleAwarenessUpdate(client: BoardSocket, payload: { boardId: string; update: string }) {
+    const { boardId, update } = payload;
+
+    if (!client.rooms.has(boardId)) return;
+
+    // Awareness updates are NOT persisted, only broadcast
+    client.to(boardId).emit('awarenessUpdate', update);
   }
 
   // --- Board Service Event Listeners (Relaying Updates) ---
+  // ... (rest of the EventPattern handlers remain the same) ...
+
   @EventPattern('board.created')
   handleBoardCreated(payload: { boardId: string; boardTitle: string; ownerId: string }) {
     this.server.emit('globalUpdate', {

@@ -12,6 +12,9 @@ import { Method } from 'axios';
 
 @Controller(':service')
 export class GatewayController {
+  getHello(): any {
+    throw new Error('Method not implemented.');
+  }
   constructor(private readonly gatewayService: GatewayService) { }
 
   @All('*')
@@ -26,11 +29,15 @@ export class GatewayController {
         req.headers['authorization'],
       );
 
-      // 2. Forward request to correct service
+      let forwardedPath = req.path;
+      if (service === 'board') {
+        forwardedPath = req.path.replace(/^\/[^/]+\//, ''); // keep current logic
+      }
+
       const response = await this.gatewayService.forwardRequest({
         service: service as keyof GatewayServices,
         method: req.method as Method,
-        path: req.path.replace(/^\/[^/]+\//, ''), // strip "/board/" prefix
+        path: forwardedPath,  // strip "/board/" prefix
         body: req.body,
         headers: {
           ...req.headers,

@@ -37,22 +37,27 @@ export class BoardListenerService {
     inviterUserName: string;
     inviterEmail: string;
     token: string;
-    email?: string;
+    email?: string; // Target email for invite
     targetUserId?: string;
     role: BoardRole;
     invitedBy: string;
   }) {
-    if (!payload.email) return; // direct userId invite, no email
+    this.logger.debug(`[Invite] Payload received. Target Email: ${payload.email}, Inviter Email: ${payload.inviterEmail}`);
 
-    const inviteUrl = `${process.env.FRONTEND_URL}/board/${payload.boardId}/accept?token=${payload.token}`;
-    await this.mailService.sendInviteEmail(
-      payload.email,
-      payload.boardTitle,
-      payload.inviterEmail,
-      inviteUrl,
-    );
-
-    this.logger.log(`Invite sent to ${payload.email} for board ${payload.boardId} (${payload.boardTitle}) by ${payload.inviterUserName}`);
+    // Check 1: Ensure the invite email is present before proceeding
+    if (!payload.email) {
+      this.logger.warn(`[Invite] Target email not found in payload for board ${payload.boardId}. Skipping email send.`);
+      // Realtime notification can still proceed if targetUserId is known
+    } else {
+      const inviteUrl = `${process.env.FRONTEND_URL}/board/${payload.boardId}/accept?token=${payload.token}`;
+      await this.mailService.sendInviteEmail(
+        payload.email,
+        payload.boardTitle,
+        payload.inviterEmail,
+        inviteUrl,
+      );
+      this.logger.log(`Invite email sent to ${payload.email} for board ${payload.boardId}.`);
+    }
 
     if (payload.targetUserId) {
       this.publish('board.invite.created', {
@@ -74,13 +79,17 @@ export class BoardListenerService {
     requesterEmail?: string;
     requestedRole: BoardRole;
     message?: string;
-    ownerEmail?: string;
+    ownerEmail?: string; // Target email for owner notification
     ownerId?: string;
   }) {
     this.logger.log(
-      `Access requested by ${payload.userId} (${payload.requesterEmail}) for board ${payload.boardId} (${payload.boardTitle}) as ${payload.requestedRole}`,
+      `Access requested by ${payload.userId} (${payload.requesterEmail}) for board ${payload.boardId} as ${payload.requestedRole}`,
     );
 
+    this.logger.debug(`[Access Request] Payload received. Owner Email: ${payload.ownerEmail}, Requester Email: ${payload.requesterEmail}`);
+
+
+    // Check 2: Ensure both emails are present to notify the owner
     if (payload.ownerEmail && payload.requesterEmail) {
       const manageLink = `${process.env.FRONTEND_URL}/board/${payload.boardId}?action=manage-sharing`;
 
@@ -92,10 +101,12 @@ export class BoardListenerService {
         payload.message,
         manageLink // Pass the new link to the email service
       );
+      this.logger.log(`Access request email sent to owner: ${payload.ownerEmail} for board ${payload.boardId}.`);
+    } else {
+      this.logger.warn(`[Access Request] Owner or Requester email missing (Owner: ${!!payload.ownerEmail}, Requester: ${!!payload.requesterEmail}). Skipping email send.`);
     }
 
     // notify board owner by WebSocket
-
     if (payload.ownerId) {
       this.publish('board.access.requested', {
         boardId: payload.boardId,
@@ -129,6 +140,9 @@ export class BoardListenerService {
       `Access request for board ${payload.boardId} (${payload.boardTitle}) responded: ${payload.userId} -> ${payload.status}`,
     );
 
+    this.logger.debug(`[Access Response] Payload received. Target Email: ${payload.email}`);
+
+
     // Notify user by email
     if (payload.email) {
       await this.mailService.sendAccessResponseEmail(
@@ -137,7 +151,11 @@ export class BoardListenerService {
         payload.status,
         payload.role,
       );
+      this.logger.log(`Access response email sent to ${payload.email}.`);
+    } else {
+      this.logger.warn(`[Access Response] Target email missing in payload for user ${payload.userId}. Skipping email send.`);
     }
+
     this.publish('board.management.updated', { boardId: payload.boardId });
     this.publish('board.access.responded', payload);
   }

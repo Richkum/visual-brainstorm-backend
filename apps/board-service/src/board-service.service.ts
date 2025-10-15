@@ -20,13 +20,16 @@ import {
   Board,
 } from './board.schema';
 import { ClientProxy } from '@nestjs/microservices';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class BoardService {
   constructor(
     @InjectModel('Board', 'boardConnection')
     private readonly boardModel: Model<BoardDocument>,
-    @Inject('REALTIME_SERVICE') private readonly realtimeClient: ClientProxy,) { }
+    // @Inject('REALTIME_SERVICE') private readonly realtimeClient: ClientProxy,
+    private readonly eventEmitter: EventEmitter2,
+  ) { }
 
   private ensureUserId(userId?: string): void {
     if (!userId) throw new ForbiddenException('Missing user id (x-user-id)');
@@ -59,14 +62,14 @@ export class BoardService {
       members: [
         {
           userId: ownerId,
-          email: ownerEmail, // Add email to the member object
+          email: ownerEmail,
           role: BoardRole.OWNER,
           joinedAt: new Date(),
         },
       ],
     });
     const savedBoard = await board.save();
-    this.realtimeClient.emit('board.created', {
+    this.eventEmitter.emit('board.created', {
       boardId: savedBoard._id.toString(),
       boardTitle: savedBoard.title,
       ownerId,
@@ -86,7 +89,7 @@ export class BoardService {
 
   async getBoardById(boardId: string, userId: string): Promise<BoardDocument> {
     this.ensureUserId(userId);
-    const board = await this.boardModel.findById(boardId).lean(); // Use .lean() for better performance
+    const board = await this.boardModel.findById(boardId).lean();
     if (!board) throw new NotFoundException('Board not found');
     const member = this.findMember(board, userId);
 
@@ -95,7 +98,7 @@ export class BoardService {
       if (ownerMember) {
         ownerMember.email = board.ownerEmail;
       }
-      return board as BoardDocument; // Return the board with ownerEmail included
+      return board as BoardDocument;
     }
     if (board.isPublic && board.publicLink) {
       // For a public board, we also wa1nt the owner email.
@@ -165,7 +168,7 @@ export class BoardService {
     if (updates.title) board.title = updates.title;
     if (typeof updates.isPublic === 'boolean') board.isPublic = updates.isPublic;
     const savedBoard = await board.save();
-    this.realtimeClient.emit('board.updated', {
+    this.eventEmitter.emit('board.updated', {
       boardId: savedBoard._id.toString(),
       boardTitle: savedBoard.title,
       updates,
@@ -180,7 +183,7 @@ export class BoardService {
     if (board.ownerId !== userId)
       throw new ForbiddenException('Only owner can delete board');
     await this.boardModel.deleteOne({ _id: boardId });
-    this.realtimeClient.emit('board.deleted', {
+    this.eventEmitter.emit('board.deleted', {
       boardId,
       boardTitle: board.title,
       deletedBy: userId,
@@ -224,7 +227,7 @@ export class BoardService {
     const savedBoard = await board.save();
 
     // THE FIX: Emit the correct event name 'board.invite.created'
-    this.realtimeClient.emit('board.invite.created', {
+    this.eventEmitter.emit('board.invite.created', {
       boardId,
       boardTitle: savedBoard.title,
       inviteId: newInvite._id.toString(),
@@ -292,7 +295,7 @@ export class BoardService {
     invite.status = InviteStatus.ACCEPTED;
     await board.save();
 
-    this.realtimeClient.emit('board.member.added', {
+    this.eventEmitter.emit('board.member.added', {
       boardId,
       boardTitle: board.title,
       userId,
@@ -314,7 +317,7 @@ export class BoardService {
 
     board.members = board.members.filter((m: BoardMember) => m.userId !== targetUserId);
     await board.save();
-    this.realtimeClient.emit('board.member.removed', {
+    this.eventEmitter.emit('board.member.removed', {
       boardId,
       boardTitle: board.title,
       targetUserId,
@@ -355,7 +358,7 @@ export class BoardService {
       newOwnerMember.role = BoardRole.OWNER;
       await board.save();
 
-      this.realtimeClient.emit('board.ownership.transferred', {
+      this.eventEmitter.emit('board.ownership.transferred', {
         boardId,
         oldOwnerId: requesterId,
         newOwnerId: targetUserId,
@@ -368,7 +371,7 @@ export class BoardService {
     member.role = newRole;
     await board.save();
 
-    this.realtimeClient.emit('board.member.role.changed', {
+    this.eventEmitter.emit('board.member.role.changed', {
       boardId,
       targetUserId,
       newRole,
@@ -401,7 +404,7 @@ export class BoardService {
     });
 
     const savedCopy = await copy.save();
-    this.realtimeClient.emit('board.copied', {
+    this.eventEmitter.emit('board.copied', {
       sourceBoardId: boardId,
       newBoardId: savedCopy._id.toString(),
       copiedBy: userId,
@@ -430,7 +433,7 @@ export class BoardService {
       board.isPublic = true;
     }
     const savedBoard = await board.save();
-    this.realtimeClient.emit('board.publiclink.changed', {
+    this.eventEmitter.emit('board.publiclink.changed', {
       boardId,
       boardTitle: board.title,
       changedBy: ownerId,
@@ -473,7 +476,7 @@ export class BoardService {
     board.accessRequests.push(accessRequest);
     const savedBoard = await board.save();
 
-    this.realtimeClient.emit('board.access.requested', {
+    this.eventEmitter.emit('board.access.requested', {
       boardId,
       boardTitle: savedBoard.title,
       requesterId: userId,
@@ -509,7 +512,7 @@ export class BoardService {
     const updatedBoard = await board.save();
 
     // Emit event for email notification
-    this.realtimeClient.emit('board.access.responded', {
+    this.eventEmitter.emit('board.access.responded', {
       boardId,
       boardTitle: updatedBoard.title,
       userId,
@@ -542,7 +545,7 @@ export class BoardService {
     const updatedBoard = await board.save();
 
     // Emit event for email notification
-    this.realtimeClient.emit('board.access.responded', {
+    this.eventEmitter.emit('board.access.responded', {
       boardId,
       boardTitle: updatedBoard.title,
       userId: request.userId,

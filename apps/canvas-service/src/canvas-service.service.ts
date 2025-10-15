@@ -1,92 +1,164 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Canvas, DrawData, CanvasDocument } from './canvas.schema';
-import { nanoid } from 'nanoid';
-
-
-export interface CanvasData {
-  roomId: string;
-  strokes: DrawData[];
-  lastUpdated: Date;
-}
+import * as Y from 'yjs';
+import { CanvasDocument } from './canvas.schema';
+import { Buffer } from 'buffer';
+import axios from 'axios';
+import { BoardRole } from './type';
 
 @Injectable()
-export class CanvasServiceService {
+export class CanvasService implements OnModuleDestroy {
+  private readonly logger = new Logger(CanvasService.name);
+  private readonly docs: Map<string, Y.Doc> = new Map();
+  // Persistence timers to prevent excessive DB writes
+  private readonly persistenceIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private readonly PERSISTENCE_DELAY_MS = 5000; // Save state to DB every 5 seconds of activity
+  private readonly API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://localhost:4001';
+
   constructor(
-    @InjectModel('Canvas') private canvasModel: Model<CanvasDocument>,
-  ) {}
+    @InjectModel('Canvas', 'canvasConnection')
+    private readonly canvasModel: Model<CanvasDocument>,
+  ) { }
 
-  getHello(): string {
-    return 'Hello World!';
+  onModuleDestroy() {
+    this.persistenceIntervals.forEach(clearInterval);
   }
 
-  async getCanvas(roomId: string): Promise<Canvas | null> {
-    return this.canvasModel.findOne({ roomId }).exec();
+  // --- Persistence Handlers ---
+
+  private async loadFromDatabase(boardId: string): Promise<Uint8Array | undefined> {
+    const canvasDoc = await this.canvasModel.findOne({ boardId }).exec();
+    return canvasDoc?.state;
   }
 
+  private async saveToDatabase(boardId: string, doc: Y.Doc): Promise<void> {
+    // Encode the full state as an update (most efficient full snapshot)
+    const fullState = Y.encodeStateAsUpdate(doc);
 
-  async updateCanvas(roomId: string, drawData: DrawData): Promise<Canvas> {
-    let canvas = await this.canvasModel.findOne({ roomId }).exec();
-    if (!canvas) {
-      canvas = new this.canvasModel({
-        roomId,
-        name: 'Untitled Board',
-        creator: 'unknown',
-        strokes: [],
-        lastUpdated: new Date(),
-      });
-    }
-
-    if (!drawData.id) drawData.id = nanoid(); // ensure unique id
-
-    canvas.strokes.push(drawData);
-    canvas.lastUpdated = new Date();
-    return canvas.save();
-  }
-
-
-  async createBoard(roomId: string, name: string, creator: string): Promise<Canvas & { inviteLink: string }> {
-    // Use findOneAndUpdate with upsert to handle concurrent requests safely
-    const board = await this.canvasModel.findOneAndUpdate(
-      { roomId },
+    await this.canvasModel.updateOne(
+      { boardId },
       {
-        $setOnInsert: {
-          roomId,
-          name,
-          creator,
-          strokes: [],
-          lastUpdated: new Date(),
+        $set: {
+          boardId,
+          state: Buffer.from(fullState),
+          lastUpdate: new Date(),
         }
       },
-      {
-        upsert: true,
-        new: true,
-        setDefaultsOnInsert: true
+      { upsert: true }
+    );
+    this.logger.debug(`Persisted full state for board ${boardId}. Size: ${fullState.length} bytes`);
+  }
+
+  private setupPersistenceHook(boardId: string, doc: Y.Doc): void {
+    let activityTimer: NodeJS.Timeout | null = null;
+
+    doc.on('update', () => {
+      if (activityTimer) {
+        clearTimeout(activityTimer);
       }
-    ).exec();
+      activityTimer = setTimeout(() => {
+        this.saveToDatabase(boardId, doc).catch(e => {
+          this.logger.error(`Failed to persist document ${boardId}: ${e.message}`);
+        });
+        activityTimer = null;
+      }, this.PERSISTENCE_DELAY_MS);
+    });
 
-    // Generate invite link with boardId and userId
-    const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invite?boardId=${board.roomId}&userId=${board.creator}`;
-
-    return { ...board.toObject(), inviteLink };
+    this.persistenceIntervals.set(boardId, activityTimer as any);
   }
 
-  async listBoards(): Promise<Canvas[]> {
-    return this.canvasModel.find().exec();
+
+  // --- Public Yjs Document Management ---
+
+  /**
+   * Gets or creates the Y.Doc, loads initial state from DB, and attaches the persistence hook.
+   */
+  async getOrCreateBoardDocument(boardId: string): Promise<Y.Doc> {
+    if (this.docs.has(boardId)) {
+      return this.docs.get(boardId) as Y.Doc;
+    }
+
+    const doc = new Y.Doc();
+    this.docs.set(boardId, doc);
+
+    const persistedState = await this.loadFromDatabase(boardId);
+    if (persistedState) {
+      // Apply the initial state (the full snapshot)
+      Y.applyUpdate(doc, persistedState, this);
+    }
+
+    this.setupPersistenceHook(boardId, doc);
+
+    return doc;
   }
 
-  async deleteBoard(roomId: string): Promise<void> {
-    await this.canvasModel.deleteOne({ roomId }).exec();
+  /**
+   * Fetches the initial Yjs state for a new client connection.
+   */
+  async getInitialState(boardId: string): Promise<Uint8Array> {
+    const doc = await this.getOrCreateBoardDocument(boardId);
+    // Y.encodeStateAsUpdate gets the full state of the document
+    return Y.encodeStateAsUpdate(doc);
   }
 
-  async clearCanvas(roomId: string): Promise<void> {
-    await this.canvasModel.deleteOne({ roomId }).exec();
+  /**
+   * Applies a Yjs update received from the Realtime Service (from a client).
+   */
+  async applyUpdate(boardId: string, update: Buffer): Promise<boolean> {
+    const doc = await this.getOrCreateBoardDocument(boardId); // Ensure the doc is loaded
+    try {
+      // Apply the update. `this` (the CanvasService) is passed as the origin 
+      // for the Realtime Gateway to ignore broadcasting it back.
+      Y.applyUpdate(doc, new Uint8Array(update), this);
+      return true;
+    } catch (e) {
+      this.logger.error(`Failed to apply Yjs update for board ${boardId}: ${e.message}`);
+      return false;
+    }
   }
 
-  validateDrawData(drawData: DrawData): boolean {
-    // Basic validation: check if drawData has required fields
+  /**
+   * Converts the Y.Doc content into a structured JSON object for export/download.
+   */
+  async getCanvasDataAsJson(boardId: string): Promise<any> {
+    const doc = await this.getOrCreateBoardDocument(boardId);
 
-    return !!(drawData && typeof drawData === 'object' && drawData.type && drawData.id);
+    // Convert the entire root structure to a JSON object
+    // Assuming the collaborative data is held in a root Y.Map or Y.Array
+    const rootMap = doc.getMap('elements');
+
+    return rootMap ? rootMap.toJSON() : { elements: [] };
+  }
+
+  // --- Utility for HTTP Endpoint Permission Check ---
+
+  async checkDownloadPermission(boardId: string, userId: string, authToken: string): Promise<void> {
+    try {
+      const authRes = await axios.get<{ role: BoardRole }>(
+        `${this.API_GATEWAY_URL}/boards/${boardId}/membership`, // Check against Board Service via Gateway
+        {
+          headers: {
+            'Authorization': authToken,
+            'x-user-id': userId,
+          },
+        }
+      );
+      const memberRole = authRes.data.role;
+
+      // Permission Check: Only Owner and Editor can download/export
+      if (memberRole !== BoardRole.OWNER && memberRole !== BoardRole.EDITOR) {
+        throw new HttpException(
+          'Insufficient permissions. Only Owner and Editor can download/export board data.',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+    } catch (e) {
+      this.logger.error(`Permission check failed for user ${userId} on board ${boardId}: ${e.message}`);
+      throw new HttpException(
+        e.response?.data?.message || 'Access check failed.',
+        e.response?.status || HttpStatus.FORBIDDEN,
+      );
+    }
   }
 }
